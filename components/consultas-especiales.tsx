@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,12 +16,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   getCarteleraPorTipo,
   getDuracionPromedioPorPais,
   getFuncionesProximas,
@@ -24,7 +24,15 @@ import {
   getPeliculasPorTipoCine,
 } from "@/lib/actions";
 import { formatDate } from "@/lib/utils";
-import { Calendar, Code, Globe, Play, Search, TrendingUp, Users } from "lucide-react";
+import {
+  Calendar,
+  Code,
+  Globe,
+  Play,
+  Search,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import { useState } from "react";
 
 interface QueryResult {
@@ -61,8 +69,7 @@ export function ConsultasEspeciales() {
     {
       id: "sp-cartelera-tipo",
       title: "SP: Cartelera por Tipo",
-      description:
-        "Stored Procedure para consultar películas por tipo de cine",
+      description: "Stored Procedure para consultar películas por tipo de cine",
       icon: Search,
       color: "from-purple-500 to-purple-700",
       sql: `DELIMITER $$
@@ -296,8 +303,12 @@ ORDER BY
                     const value = row[key];
                     let displayValue: string;
 
-                    if (key.toLowerCase().includes("horario") || key.toLowerCase().includes("fecha")) {
-                      displayValue = typeof value === "string" ? formatDate(value) : "-";
+                    if (
+                      key.toLowerCase().includes("horario") ||
+                      key.toLowerCase().includes("fecha")
+                    ) {
+                      displayValue =
+                        typeof value === "string" ? formatDate(value) : "-";
                     } else if (typeof value === "number") {
                       displayValue = value.toLocaleString();
                     } else if (typeof value === "string") {

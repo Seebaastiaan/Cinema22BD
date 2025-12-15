@@ -2,18 +2,18 @@
 
 import { query } from "./db";
 import {
+  CarteleraPorTipo,
   CineCapsula,
   DashboardStats,
   Director,
-  HorarioFuncion,
-  Pelicula,
-  TipoCine,
-  CarteleraPorTipo,
-  PeliculasPorDirectorCount,
-  PeliculasPorTipoCine,
   DuracionPromedioPorPais,
   FuncionProxima,
+  HorarioFuncion,
+  Pelicula,
   PeliculaPorDirectorEspecifico,
+  PeliculasPorDirectorCount,
+  PeliculasPorTipoCine,
+  TipoCine,
 } from "./types";
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -192,6 +192,179 @@ export async function getTiposCine(): Promise<TipoCine[]> {
     );
   } catch (error) {
     console.error("Error fetching tipos cine:", error);
+    throw error;
+  }
+}
+
+// Crear nueva película (usa el trigger TR_BeforeInsert_Pelicula_Duracion)
+export async function crearPelicula(data: {
+  titulo_original: string;
+  titulo_espanol: string | null;
+  sinopsis: string | null;
+  anio_lanzamiento: number;
+  pais_origen: string | null;
+  duracion_minutos: number | null;
+  ficha_tecnica_resumen: string | null;
+  id_director: number | null;
+  id_tipo_cine: number | null;
+}): Promise<{ success: boolean; id?: number; message: string }> {
+  try {
+    const result = await query<{ insertId: number }>(
+      `INSERT INTO pelicula (
+        titulo_original, 
+        titulo_espanol, 
+        sinopsis, 
+        anio_lanzamiento, 
+        pais_origen, 
+        duracion_minutos, 
+        ficha_tecnica_resumen, 
+        id_director, 
+        id_tipo_cine
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        data.titulo_original,
+        data.titulo_espanol,
+        data.sinopsis,
+        data.anio_lanzamiento,
+        data.pais_origen,
+        data.duracion_minutos,
+        data.ficha_tecnica_resumen,
+        data.id_director,
+        data.id_tipo_cine,
+      ]
+    );
+
+    return {
+      success: true,
+      id: result[0]?.insertId,
+      message: "Película creada exitosamente",
+    };
+  } catch (error) {
+    console.error("Error creating pelicula:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al crear película",
+    };
+  }
+}
+
+// Crear horario de función (usa el trigger TR_AfterInsert_Horario)
+export async function crearHorarioFuncion(data: {
+  fecha_hora_transmision: string;
+  id_pelicula: number;
+}): Promise<{ success: boolean; id?: number; message: string }> {
+  try {
+    const result = await query<{ insertId: number }>(
+      `INSERT INTO horario_funcion (fecha_hora_transmision, id_pelicula) 
+       VALUES (?, ?)`,
+      [data.fecha_hora_transmision, data.id_pelicula]
+    );
+
+    return {
+      success: true,
+      id: result[0]?.insertId,
+      message: "Horario creado exitosamente. Se registró en log_cartelera.",
+    };
+  } catch (error) {
+    console.error("Error creating horario:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al crear horario",
+    };
+  }
+}
+
+// Actualizar película (usa el SP_ActualizarSinopsis para la sinopsis)
+export async function actualizarPelicula(
+  id: number,
+  data: {
+    titulo_original?: string;
+    titulo_espanol?: string | null;
+    sinopsis?: string | null;
+    anio_lanzamiento?: number;
+    pais_origen?: string | null;
+    duracion_minutos?: number | null;
+    ficha_tecnica_resumen?: string | null;
+    id_director?: number | null;
+    id_tipo_cine?: number | null;
+  }
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    Object.entries(data).forEach(([key, value]) => {
+      fields.push(`${key} = ?`);
+      values.push(value);
+    });
+
+    if (fields.length === 0) {
+      return { success: false, message: "No hay campos para actualizar" };
+    }
+
+    values.push(id);
+
+    await query(
+      `UPDATE pelicula SET ${fields.join(", ")} WHERE id_pelicula = ?`,
+      values
+    );
+
+    return {
+      success: true,
+      message: "Película actualizada exitosamente",
+    };
+  } catch (error) {
+    console.error("Error updating pelicula:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al actualizar película",
+    };
+  }
+}
+
+// Actualizar sinopsis usando el Stored Procedure
+export async function actualizarSinopsisSP(
+  id_pelicula: number,
+  nueva_sinopsis: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    await query(
+      "CALL SP_ActualizarSinopsis(?, ?)",
+      [id_pelicula, nueva_sinopsis]
+    );
+
+    return {
+      success: true,
+      message: `Sinopsis de la película ID ${id_pelicula} actualizada correctamente mediante SP`,
+    };
+  } catch (error) {
+    console.error("Error updating sinopsis:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al actualizar sinopsis",
+    };
+  }
+}
+
+// Búsqueda de películas por título
+export async function buscarPeliculas(busqueda: string): Promise<Pelicula[]> {
+  try {
+    return await query<Pelicula>(
+      `SELECT 
+        p.*,
+        d.nombre_completo as director_nombre,
+        tc.nombre_tipo as tipo_cine_nombre
+      FROM pelicula p
+      LEFT JOIN director d ON p.id_director = d.id_director
+      LEFT JOIN tipo_cine tc ON p.id_tipo_cine = tc.id_tipo
+      WHERE p.titulo_original LIKE ? 
+         OR p.titulo_espanol LIKE ?
+      ORDER BY p.titulo_espanol ASC, p.titulo_original ASC
+      LIMIT 20`,
+      [`%${busqueda}%`, `%${busqueda}%`]
+    );
+  } catch (error) {
+    console.error("Error searching peliculas:", error);
     throw error;
   }
 }
