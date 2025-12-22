@@ -1,14 +1,15 @@
 "use client";
 
-import { ConsultasEspeciales } from "@/components/consultas-especiales";
 import { AltaPelicula } from "@/components/alta-pelicula";
+import { ConsultasEspeciales } from "@/components/consultas-especiales";
 import { EditarPelicula } from "@/components/editar-pelicula";
 import { PeliculaCard } from "@/components/pelicula-card";
 import { StatsCards } from "@/components/stats-cards";
 import { getDashboardStats, getPeliculas } from "@/lib/actions";
-import { Film, Plus, Edit, Database, Home as HomeIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { initializeLocalStorage } from "@/lib/localStorage";
 import type { DashboardStats, Pelicula } from "@/lib/types";
+import { Database, Edit, Film, Home as HomeIcon, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
 
 type Section = "home" | "alta" | "editar" | "consultas";
 
@@ -17,8 +18,15 @@ export default function HomePage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [peliculas, setPeliculas] = useState<Pelicula[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Marcar como montado para evitar hidration mismatch
+    setMounted(true);
+    
+    // Inicializar localStorage con todos los datos de SQL
+    initializeLocalStorage();
+
     async function loadData() {
       try {
         const [statsData, peliculasData] = await Promise.all([
@@ -35,6 +43,18 @@ export default function HomePage() {
     }
     loadData();
   }, []);
+
+  // No renderizar nada hasta que esté montado en el cliente
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-linear-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-slate-950 dark:to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
 
   const navItems = [
     { id: "home" as Section, label: "Inicio", icon: HomeIcon },
@@ -129,7 +149,10 @@ export default function HomePage() {
 
               <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
                 {peliculas.map((pelicula) => (
-                  <PeliculaCard key={pelicula.id_pelicula} pelicula={pelicula} />
+                  <PeliculaCard
+                    key={pelicula.id_pelicula}
+                    pelicula={pelicula}
+                  />
                 ))}
               </div>
             </div>
